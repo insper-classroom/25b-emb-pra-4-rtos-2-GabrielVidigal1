@@ -19,8 +19,6 @@
 // === Definições para SSD1306 ===
 ssd1306_t disp;
 
-
-
 QueueHandle_t xQueueTime;
 QueueHandle_t xQueueDistance;
 
@@ -39,11 +37,10 @@ void trigger_task(void *p){
     while(1){
         gpio_put(TRIG_PIN, 1);
         vTaskDelay(pdMS_TO_TICKS(1));
-
         gpio_put(TRIG_PIN, 0);
         xSemaphoreGive(xSemaphore_Trigger);
         vTaskDelay(pdMS_TO_TICKS(150));
-        printf("trigger\n");
+        printf("entrei no trigger\n");
     }
     
 }
@@ -53,15 +50,19 @@ void echo_task(void* p){
     absolute_time_t end_time;
     while(1){
         if (xQueueReceive(xQueueTime, &start_time, portMAX_DELAY)) {
-            if (xQueueReceive(xQueueTime, &end_time, pdMS_TO_TICKS(50))) {
+            if (xQueueReceive(xQueueTime, &end_time, portMAX_DELAY)) {
                 uint64_t pulse_duration_us = absolute_time_diff_us(start_time, end_time);
                 float last_distance_cm = (float)pulse_duration_us *  0.0343 / 2.0f;
                 xQueueSend(xQueueDistance, &last_distance_cm, 0);
+                printf("echo task funcionando!\n");
             }
         }
     }
 }
 
+
+
+    
 
 void oled_task(void* p){
     float distance_cm;
@@ -70,22 +71,20 @@ void oled_task(void* p){
     while (1) {
 
         xSemaphoreTake(xSemaphore_Trigger, portMAX_DELAY);
+        printf("consumi o farol!\n");
 
 
         if (xQueueReceive(xQueueDistance, &distance_cm, pdMS_TO_TICKS(140))) {
             ssd1306_clear(&disp);
             sprintf(dist_str, "Dist: %.1f cm", distance_cm);
+            printf("%1.f cm\n", distance_cm);
             ssd1306_draw_string(&disp, 0, 8, 2, dist_str);
 
-            if (distance_cm <= 100.0) {
-                gpio_put(LED_PIN_G, 0);
-                gpio_put(LED_PIN_R, 1);
+            if (distance_cm <= 100.0 && distance_cm>0.0) {
+                gpio_put(LED_PIN_R, 1); gpio_put(LED_PIN_G, 1); gpio_put(LED_PIN_B, 0);
             } else {
-                gpio_put(LED_PIN_G, 0);
-                gpio_put(LED_PIN_R, 0);
+                gpio_put(LED_PIN_R, 1); gpio_put(LED_PIN_G, 0); gpio_put(LED_PIN_B, 0);
             }
-            gpio_put(LED_PIN_B, 1);
-
 
             int bar_width = (int)(distance_cm / 200.0f * 128);
             if (bar_width > 128) bar_width = 128;
@@ -93,19 +92,15 @@ void oled_task(void* p){
             
             ssd1306_draw_line(&disp, 0, 50, bar_width, 50);
             ssd1306_draw_line(&disp, 0, 51, bar_width, 51);
-            ssd1306_show(&disp);
            
         }
         else {
             ssd1306_clear(&disp);
             ssd1306_draw_string(&disp, 0, 24, 2, "Falha no");
             ssd1306_draw_string(&disp, 0, 48, 2, "sensor!");
-            ssd1306_show(&disp);
-            gpio_put(LED_PIN_R, 0);
-            gpio_put(LED_PIN_G, 1);
-            gpio_put(LED_PIN_B, 1);
+            gpio_put(LED_PIN_R, 1); gpio_put(LED_PIN_G, 1); gpio_put(LED_PIN_B, 0);
         }
-        
+        ssd1306_show(&disp);
     }
 }
     
@@ -149,7 +144,6 @@ int main() {
 
     gpio_init(TRIG_PIN);
     gpio_set_dir(TRIG_PIN, GPIO_OUT);
-    gpio_put(TRIG_PIN, 0);
 
     gpio_init(ECHO_PIN);
     gpio_set_dir(ECHO_PIN, GPIO_IN);
@@ -159,9 +153,9 @@ int main() {
     xQueueTime = xQueueCreate(10, sizeof(absolute_time_t));
     xSemaphore_Trigger = xSemaphoreCreateBinary();
 
-    xTaskCreate(trigger_task, "Trigger_Task", 256, NULL, 1, NULL);
-    xTaskCreate(echo_task, "Echo_Task", 256, NULL, 1, NULL);
-    xTaskCreate(oled_task, "OLED_Task", 2048, NULL, 1, NULL);
+    xTaskCreate(trigger_task, "Trigger Task", 256, NULL, 1, NULL);
+    xTaskCreate(echo_task, "Echo Task", 256, NULL, 1, NULL);
+    xTaskCreate(oled_task, "OLED Task", 2048, NULL, 1, NULL);
 
     vTaskStartScheduler();
 
