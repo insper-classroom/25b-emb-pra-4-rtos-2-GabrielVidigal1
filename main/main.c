@@ -50,7 +50,7 @@ void echo_task(void* p){
     absolute_time_t end_time;
     while(1){
         if (xQueueReceive(xQueueTime, &start_time, portMAX_DELAY)) {
-            if (xQueueReceive(xQueueTime, &end_time, portMAX_DELAY)) {
+            if (xQueueReceive(xQueueTime, &end_time, pdMS_TO_TICKS(50))) {
                 uint64_t pulse_duration_us = absolute_time_diff_us(start_time, end_time);
                 float last_distance_cm = (float)pulse_duration_us *  0.0343 / 2.0f;
                 xQueueSend(xQueueDistance, &last_distance_cm, 0);
@@ -80,10 +80,10 @@ void oled_task(void* p){
             printf("%1.f cm\n", distance_cm);
             ssd1306_draw_string(&disp, 0, 8, 2, dist_str);
 
-            if (distance_cm <= 100.0 && distance_cm>0.0) {
-                gpio_put(LED_PIN_R, 1); gpio_put(LED_PIN_G, 1); gpio_put(LED_PIN_B, 0);
+            if (distance_cm > 0 && distance_cm <= 100.0) {
+                gpio_put(LED_PIN_R, 0); gpio_put(LED_PIN_G, 1); gpio_put(LED_PIN_B, 0);
             } else {
-                gpio_put(LED_PIN_R, 1); gpio_put(LED_PIN_G, 0); gpio_put(LED_PIN_B, 0);
+                gpio_put(LED_PIN_R, 1); gpio_put(LED_PIN_G, 1); gpio_put(LED_PIN_B, 0);
             }
 
             int bar_width = (int)(distance_cm / 200.0f * 128);
@@ -98,7 +98,7 @@ void oled_task(void* p){
             ssd1306_clear(&disp);
             ssd1306_draw_string(&disp, 0, 24, 2, "Falha no");
             ssd1306_draw_string(&disp, 0, 48, 2, "sensor!");
-            gpio_put(LED_PIN_R, 1); gpio_put(LED_PIN_G, 1); gpio_put(LED_PIN_B, 0);
+            gpio_put(LED_PIN_R, 1); gpio_put(LED_PIN_G, 0); gpio_put(LED_PIN_B, 0);
         }
         ssd1306_show(&disp);
     }
